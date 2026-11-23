@@ -1,14 +1,12 @@
 package database
 
 import (
-	"context"
 	"fmt"
 	"github.com/joho/godotenv"
-	"go.mongodb.org/mongo-driver/mongo"
-	"go.mongodb.org/mongo-driver/mongo/options"
+	"go.mongodb.org/mongo-driver/v2/mongo"
+	"go.mongodb.org/mongo-driver/v2/mongo/options"
 	"log"
 	"os"
-	"time"
 )
 
 func DBinstance() *mongo.Client {
@@ -19,16 +17,7 @@ func DBinstance() *mongo.Client {
 	}
 
 	MongoDb := os.Getenv("MONGODB_URL")
-	client, err := mongo.NewClient(options.Client().ApplyURI(MongoDb))
-
-	if err != nil {
-		log.Fatal(err)
-	}
-
-	ctx, cancle := context.WithTimeout(context.Background(), 10*time.Second)
-
-	defer cancle()
-	err = client.Connect(ctx)
+	client, err := mongo.Connect(options.Client().ApplyURI(MongoDb))
 
 	if err != nil {
 		log.Fatal(err)

@@ -3,11 +3,10 @@ package helpers
 import (
 	"context"
 	"fmt"
-	jwt "github.com/dgrijalva/jwt-go"
-	"go.mongodb.org/mongo-driver/bson"
-	"go.mongodb.org/mongo-driver/bson/primitive"
-	"go.mongodb.org/mongo-driver/mongo"
-	"go.mongodb.org/mongo-driver/mongo/options"
+	jwt "github.com/golang-jwt/jwt/v5"
+	"go.mongodb.org/mongo-driver/v2/bson"
+	"go.mongodb.org/mongo-driver/v2/mongo"
+	"go.mongodb.org/mongo-driver/v2/mongo/options"
 	"golang-jwt-project/database"
 	"log"
 	"os"
@@ -20,7 +19,7 @@ type SignedDetails struct {
 	Last_name  string
 	Uid        string
 	User_type  string
-	jwt.StandardClaims
+	jwt.RegisteredClaims
 }
 
 var userCollection *mongo.Collection = database.OpenCollection(database.Client, "user")
@@ -34,14 +33,14 @@ func GenerateAllTokens(email string, firstname string, lastname string, userType
 		Last_name:  lastname,
 		Uid:        uid,
 		User_type:  userType,
-		StandardClaims: jwt.StandardClaims{
-			ExpiresAt: time.Now().Local().Add(time.Hour * time.Duration(24)).Unix(),
+		RegisteredClaims: jwt.RegisteredClaims{
+			ExpiresAt: jwt.NewNumericDate(time.Now().Local().Add(time.Hour * time.Duration(24))),
 		},
 	}
 
 	refreshClaims := &SignedDetails{
-		StandardClaims: jwt.StandardClaims{
-			ExpiresAt: time.Now().Local().Add(time.Hour * time.Duration(124)).Unix(),
+		RegisteredClaims: jwt.RegisteredClaims{
+			ExpiresAt: jwt.NewNumericDate(time.Now().Local().Add(time.Hour * time.Duration(124))),
 		},
 	}
 
@@ -70,7 +69,7 @@ func ValidateToken(signedToken string) (claims *SignedDetails, msg string) {
 		return
 	}
 
-	if claims.ExpiresAt < time.Now().Local().Unix() {
+	if claims.ExpiresAt == nil || claims.ExpiresAt.Before(time.Now()) {
 		msg = fmt.Sprintf("the token is expired!!")
 		msg = err.Error()
 		return
@@ -81,7 +80,7 @@ func ValidateToken(signedToken string) (claims *SignedDetails, msg string) {
 
 func UpdateAllTokens(signedToken string, signedRefreshToken string, userId string) {
 	var ctx, cancel = context.WithTimeout(context.Background(), 100*time.Second)
-	var updateObj primitive.D
+	var updateObj bson.D
 
 	updateObj = append(updateObj, bson.E{"token", signedToken})
 	updateObj = append(updateObj, bson.E{"refresh_token", signedRefreshToken})
@@ -91,14 +90,12 @@ func UpdateAllTokens(signedToken string, signedRefreshToken string, userId strin
 
 	upsert := true
 	filter := bson.M{"user_id": userId}
-	opt := options.UpdateOptions{
-		Upsert: &upsert,
-	}
+	opt := options.UpdateOne().SetUpsert(upsert)
 	_, err := userCollection.UpdateOne(
 		ctx,
 		filter,
 		bson.D{{"$set", updateObj}},
-		&opt,
+		opt,
 	)
 	defer cancel()
 
